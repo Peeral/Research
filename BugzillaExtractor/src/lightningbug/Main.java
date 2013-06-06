@@ -5,7 +5,9 @@
 package lightningbug;
 
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Connection;
@@ -44,6 +46,7 @@ public class Main {
     private Connection connection;
     private XmlRpcClient rpcClient;
     private List<MyBug> bugList = null;
+    PrintWriter pw;
     
 
     public Connection getConn() {
@@ -55,6 +58,7 @@ public class Main {
         //setupDBConn(props);
         setupRPCClient(props);
         loginBugzilla(props);
+        pw = new PrintWriter(new FileWriter("General.txt", true));
     }
 
     private Properties getProperties(String propsFileName) throws IOException {
@@ -108,17 +112,17 @@ public class Main {
         Map bugSearch = new HashMap();
         
         // Apache products
-        //Object[] products = {"Log4j"};//{"Ant", "Apache httpd-1.3", "Apache httpd-2"};
+        //Object[] products = {"Apache httpd-2"};//{"Ant", "Apache httpd-1.3", "Apache httpd-2"};
         
         // Eclipse products
-        Object[] products = {"Mylyn"};//{"BIRT", "JDT", "Mylyn"};
+        //Object[] products = {"Linux Tools"};//{"BIRT", "JDT", "Mylyn"};
        
         
         // Wireshark products
         //Object[] products = /*{"Web sites",*/ {"Wireshark"};
         
         // Mindrot - OpenSSH
-        //Object[] products = {"softflowd"};//{"Portable OpenSSH"};
+        //Object[] products = {"Portable OpenSSH"};//{"Portable OpenSSH"};
         
         // Mozilla
         //Object[] products = {"SeaMonkey"};
@@ -127,7 +131,7 @@ public class Main {
         //Object[] products = {"Tools"};
         
         // Apache OpenOffice
-        //Object[] products = {"documentation"};
+        Object[] products = {"General"};
         
         //Object[] components = {"All", "Build", "Core"}; //list all component. ommit to include all components
         Object[] status = {"CLOSED"};
@@ -226,6 +230,10 @@ public class Main {
     	long avgFixTime = 0;
     	int totalBugsWithPatches = 0;
     	
+//    	System.out.println("BugID \t BugVersion(ReleaseDate) \t BugReportDate" +
+//    			" \t PatchDate \t FixTime");
+    	pw.println("BugID \t BugVersion(ReleaseDate) \t BugReportDate" +
+    			" \t PatchDate \t FixTime");
     	while(i.hasNext()) {
     		String bug = (String) i.next();
     		int bugId = Integer.parseInt (bug);
@@ -252,9 +260,15 @@ public class Main {
     				//System.out.println(attachment.get("data"));
     				countPatches ++;
     				Timestamp reportDate = returnCreationDate(bugId, creationDateList, idList);
-    				Timestamp patchDate = new Timestamp(((java.util.Date) attachment.get("last_change_time")).getTime());
+    				Timestamp patchDate = new Timestamp(((java.util.Date) attachment.get("creation_time")).getTime());
     				fixTime = (Long) (patchDate.getTime() - reportDate.getTime())/ (1000 *60 *60 *24);
-    				System.out.println(bugId + "\t"
+//    				System.out.println(bugId + "\t"
+//    						//+ idList.get(index) + "\t"
+//    						+ returnVersion(bugId, versionList, idList) + "\t" 
+//    						+ reportDate + "\t"
+//    						+ patchDate + "\t" 
+//    						+ fixTime + " days");
+    				pw.println(bugId + "\t"
     						//+ idList.get(index) + "\t"
     						+ returnVersion(bugId, versionList, idList) + "\t" 
     						+ reportDate + "\t"
@@ -270,7 +284,11 @@ public class Main {
     	}
     	System.out.println("Total Patches: " + countPatches);
     	System.out.println("Average Fix Time: " + (avgFixTime/totalBugsWithPatches) + " days");
+    	pw.println("Total Patches: " + countPatches);
+    	pw.println("Average Fix Time: " + (avgFixTime/totalBugsWithPatches) + " days");
+    	pw.close();
     	return countPatches;
+    	
     }
     
     
