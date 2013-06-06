@@ -21,6 +21,7 @@ public class MyBug {
     private String assignee;
     private Timestamp reported;
     private Timestamp closed;
+    private String version;
 
     public Integer getId() {
         return id;
@@ -93,7 +94,15 @@ public class MyBug {
     public void setAssignee(String assignee) {
         this.assignee = assignee;
     }
-
+    
+    public String getVersion() {
+    	return version;
+    }
+    
+    public void setVerison(String version) {
+    	this.version = version;
+    }
+    
     
     @Override
 //    public int hashCode() {

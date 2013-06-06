@@ -44,6 +44,7 @@ public class Main {
     private Connection connection;
     private XmlRpcClient rpcClient;
     private List<MyBug> bugList = null;
+    
 
     public Connection getConn() {
         return connection;
@@ -110,7 +111,7 @@ public class Main {
         //Object[] products = {"Log4j"};//{"Ant", "Apache httpd-1.3", "Apache httpd-2"};
         
         // Eclipse products
-        //Object[] products = {"ATF"};//{"BIRT", "JDT", "Mylyn"};
+        Object[] products = {"Mylyn"};//{"BIRT", "JDT", "Mylyn"};
        
         
         // Wireshark products
@@ -126,7 +127,7 @@ public class Main {
         //Object[] products = {"Tools"};
         
         // Apache OpenOffice
-        Object[] products = {"documentation"};
+        //Object[] products = {"documentation"};
         
         //Object[] components = {"All", "Build", "Core"}; //list all component. ommit to include all components
         Object[] status = {"CLOSED"};
@@ -138,12 +139,19 @@ public class Main {
         bugSearch.put("resolution", resolutions);
       
         m.bugList = m.searchBugs(bugSearch, products);
+//        List<Integer> idList = new ArrayList();
+//        List<Timestamp> dateTimeList = new ArrayList();
+//        List<String> versionList = new ArrayList();
         List<Integer> idList = new ArrayList();
+        List<Timestamp> creationDateList = new ArrayList();
+        List<String> versionList = new ArrayList();
         System.out.println("building arraylist...");
         
         //build array of ids for retrieving history details for each bug id
         for (MyBug mb : m.bugList) {
             idList.add(mb.getId());
+            creationDateList.add(mb.getReported());
+            versionList.add(mb.getVersion());
         }
 
         int totalPatches = 0;
@@ -168,7 +176,9 @@ public class Main {
         Map bugMap = new HashMap();
         bugMap.put("ids", ids);
         System.out.println("Call getPatches()");
-        m.getPatches(bugMap);
+        m.getPatches(bugMap, creationDateList, versionList, idList);
+        
+
         
 //        System.out.println("processing bugs...");
 //        m.processHistory(bugMap);
@@ -195,13 +205,26 @@ public class Main {
 //        System.out.println("done...");
     }
 
-    public int getPatches(Map bugMap) throws XmlRpcException {
+    public Timestamp returnCreationDate (int id, List<Timestamp> creationDateList, List<Integer> idList) {
+    	int i = idList.indexOf(id);
+    	return creationDateList.get(i);
+    }
+    
+    public String returnVersion (int id, List<String> versionList, List<Integer> idList) {
+    	int i = idList.indexOf(id);
+    	return versionList.get(i);
+    }
+    
+    
+    public int getPatches(Map bugMap, List<Timestamp> creationDateList, List<String> versionList, List<Integer> idList) throws XmlRpcException {
     	Map result = (Map) rpcClient.execute("Bug.attachments", new Object[]{bugMap});
     	System.out.println("Getting Patches...");
     	HashMap bugs = (HashMap) result.get("bugs");
     	Set s = bugs.keySet();
     	Iterator i = s.iterator();
     	int countPatches = 0;
+    	long avgFixTime = 0;
+    	int totalBugsWithPatches = 0;
     	
     	while(i.hasNext()) {
     		String bug = (String) i.next();
@@ -212,23 +235,41 @@ public class Main {
 //    		Collection values = (Collection) bug.values();
     		int count = 0;
 //    		Object[] attachments = values.toArray();
-//    		
+
     		if (attachments == null) {
     			continue;
     		}
     		///System.out.println("Total Attachments: " + attachments.length);
+    		
+    		Long fixTime = (long) 0.0;
     		for (int j = 0; j < attachments.length; j ++) {
     			HashMap attachment = (HashMap) attachments[j];
     			//System.out.println(attachment.get("is_patch"));
     			if ((Integer) attachment.get("is_patch") == 1) {
-    				count++;
+    				if (count == 0) {
+    					count += 1;
+    				}
     				//System.out.println(attachment.get("data"));
     				countPatches ++;
+    				Timestamp reportDate = returnCreationDate(bugId, creationDateList, idList);
+    				Timestamp patchDate = new Timestamp(((java.util.Date) attachment.get("last_change_time")).getTime());
+    				fixTime = (Long) (patchDate.getTime() - reportDate.getTime())/ (1000 *60 *60 *24);
+    				System.out.println(bugId + "\t"
+    						//+ idList.get(index) + "\t"
+    						+ returnVersion(bugId, versionList, idList) + "\t" 
+    						+ reportDate + "\t"
+    						+ patchDate + "\t" 
+    						+ fixTime + " days");
     			}
     		}
+    		
+    		// This will add only the latest patch to calculate the average
+    		avgFixTime += fixTime;
+    		totalBugsWithPatches += count;
     		//System.out.println("For Bug " + bugId + ", No of patches: " + count);
     	}
-    	System.out.println("Total Patches for this iteration: " + countPatches);
+    	System.out.println("Total Patches: " + countPatches);
+    	System.out.println("Average Fix Time: " + (avgFixTime/totalBugsWithPatches) + " days");
     	return countPatches;
     }
     
@@ -253,6 +294,7 @@ public class Main {
             Long reportedlt = ((java.util.Date) bug.get("creation_time")).getTime();
             String summary = (String)bug.get("summary");
             String assignee = (String)bug.get("assigned_to");
+            String version = (String)bug.get("version");
             
             
             myBug.setReported(new Timestamp(reportedlt));
@@ -263,22 +305,22 @@ public class Main {
             myBug.setId(bugId);
             myBug.setAssignee(assignee);
             myBug.setSummary(summary);
+            myBug.setVerison(version);
             myBugList.add(myBug);
             
-            for (int i1 = 0; i1 < products.length; i1 ++) {
-            	if (products[i1].equals(product)) {
-            		count[i1] ++;
-            		break;
-            	}
-            }
+//            for (int i1 = 0; i1 < products.length; i1 ++) {
+//            	if (products[i1].equals(product)) {
+//            		count[i1] ++;
+//            		break;
+//            	}
+//            }
         }
         
-        for (int i = 0; i < products.length; i ++) {
-        	System.out.println(products[i] + " bugs: " + count[i]);
-        }
+//        for (int i = 0; i < products.length; i ++) {
+//        	System.out.println(products[i] + " bugs: " + count[i]);
+//        }
         
         System.out.println("Total Number of bugs returned: " + bugs.length);
-        
         return myBugList;
     }
 
